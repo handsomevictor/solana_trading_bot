@@ -27,6 +27,9 @@ TRADING_TOKENS = ["SOL", "USDC", "USDT", "JitoSOL"]
 
 RPC_URL = "https://api.mainnet-beta.solana.com"
 
+TRANSACTION_TIMEOUT_SECONDS = 5
+
+
 if __name__ == '__main__':
     print(TOKEN_MINT_INFO)
     print(TEST_USER_PUBLIC_KEY)

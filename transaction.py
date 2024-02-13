@@ -26,9 +26,11 @@ from spl.token.instructions import get_associated_token_address
 from jupiter_python_sdk.jupiter import Jupiter, Jupiter_DCA
 
 import color_functions as c
+from decorators import func_timeout
 from logging_formatter import console_handler
 from exceptions_trade import PublicKeyError, TokenNotFoundInResources
-from resources import USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL
+from resources import (USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL,
+                       TRANSACTION_TIMEOUT_SECONDS)
 
 # create logger
 logger = logging.getLogger(__name__)
@@ -42,11 +44,15 @@ class Wallet:
     def __init__(self, rpc_url: str,
                  private_key: str,
                  async_client: bool = True):
-        self.wallet = Keypair.from_bytes(base58.b58decode(private_key))
-        if async_client:
-            self.client = AsyncClient(endpoint=rpc_url)
+        if rpc_url and private_key:
+            self.wallet = Keypair.from_bytes(base58.b58decode(private_key))
+            if async_client:
+                self.client = AsyncClient(endpoint=rpc_url)
+            else:
+                self.client = Client(endpoint=rpc_url)
         else:
-            self.client = Client(endpoint=rpc_url)
+            self.wallet = None
+            self.client = None
         self.transaction_hash = None
 
     def get_token_balance(self, token_mint_account: Pubkey) -> dict:
@@ -82,6 +88,7 @@ class Wallet:
                                                           mint=Pubkey.from_string(token_mint))
         return token_mint_account
 
+    @func_timeout(TRANSACTION_TIMEOUT_SECONDS)
     def sign_send_transaction(self, transaction_data: str,
                               signatures_list: list = None):
         """
@@ -152,7 +159,8 @@ class TradeOnJup(Wallet):
     def trade_on_jup(self, input_asset: str,
                      output_asset: str,
                      input_asset_amount: int,
-                     output_asset_slippage_list: list) -> int:
+                     output_asset_slippage_list: list,
+                     jup_post_request_timeout_seconds: float = 10) -> int:
         """
         STARTS THE TRADE ON JUPITER
         :return: status code either 200 (success) or 400 (failure)
@@ -175,7 +183,8 @@ class TradeOnJup(Wallet):
             "wrapUnwrapSOL": True
         }
 
-        get_swap_data = httpx.post(url="https://quote-api.jup.ag/v6/swap", json=swap_data).json()
+        get_swap_data = httpx.post(url="https://quote-api.jup.ag/v6/swap", json=swap_data,
+                                   timeout=jup_post_request_timeout_seconds).json()
         swap_data = get_swap_data['swapTransaction']
 
         self.wallet.sign_send_transaction(transaction_data=swap_data)
@@ -202,7 +211,8 @@ if __name__ == "__main__":
         "input_asset": input_asset,
         "output_asset": output_asset,
         "input_asset_amount": int(input_asset_amount * (10 ** TOKEN_MINT_INFO[input_asset]["Decimals"])),
-        "output_asset_slippage_list": [10, 22, 35, 50]
+        "output_asset_slippage_list": [10, 22, 35, 50],
+        "jup_post_request_timeout_seconds": 10,
     }
     execute_trade = executor.trade_on_jup(**trade_pamras)
 
@@ -211,4 +221,3 @@ if __name__ == "__main__":
 
     # check balance again
     current_balances_df = executor.get_token_balance_df()
-
