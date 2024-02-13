@@ -9,4 +9,12 @@ is not responsible for any loss caused by using this project.
 
 Currently, this project only supports trading on JUP using Solana Wallet.
 
+When using the project, remember to create a wallet and transfer some SOL or other tokens to it, and put the public
+and private key to the environment variables, because the project will use them to sign the transactions:
+
+```angular2html
+TEST_USER_PUBLIC_KEY = os.environ.get("TEST_USER_PUBLIC_KEY")
+TEST_USER_PRIVATE_KEY = os.environ.get("TEST_SOLANA_USER_PRIVATE_KEY")
+```
+
 Feb. 13, 2024
