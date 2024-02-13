@@ -60,4 +60,11 @@ from [0xTaoDev](https://github.com/0xTaoDev/jupiter-python-cli)
 Real-time data is sourced from Kaiko and the Binance API. However, only Kaiko data is used for building trading
 strategies. If you're interested in leveraging Kaiko data, feel free to reach out. Note that it's not free.
 
+## Some Good Blockchain Analytics Websites
+
+- [BirdEye](https://birdeye.so/)
+- [Defillama](https://defillama.com/airdrops?chain=Solana)
+- [ArkhamIntelligence](https://platform.arkhamintelligence.com/explorer/entity/grayscale)
+- [Dune](https://dune.com/etaetaeta/pyth-stakers-over-time)
+
 Date: Feb. 13, 2024
