@@ -21,9 +21,9 @@ from solana.transaction import Transaction
 from solana.rpc.commitment import Processed
 from solana.rpc.async_api import AsyncClient
 
-from spl.token.instructions import get_associated_token_address
-
 from jupiter_python_sdk.jupiter import Jupiter, Jupiter_DCA
+
+from spl.token.instructions import get_associated_token_address
 
 import color_functions as c
 from decorators import func_timeout

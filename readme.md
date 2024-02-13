@@ -21,6 +21,10 @@ USER_PUBLIC_KEY = os.environ.get("TEST_USER_PUBLIC_KEY")
 USER_PRIVATE_KEY = os.environ.get("TEST_SOLANA_USER_PRIVATE_KEY")
 ```
 
+## How to Run
+
+Execute [transaction_executor.py](trading_bot%2Ftransaction_executor.py) in `./trading_bot`.
+
 ## Example Calculation
 
 Assume your Solana wallet holds 1 SOL and 1 USDC, and you want to swap 0.1 SOL for USDC. Assuming a gas fee of 0.00007
