@@ -46,7 +46,9 @@ USER_PUBLIC_KEY = TEST_USER_PUBLIC_KEY
 # noinspection PyShadowingNames
 class Wallet:
 
-    def __init__(self, rpc_url: str, private_key: str, async_client: bool = True):
+    def __init__(self, rpc_url: str,
+                 private_key: str,
+                 async_client: bool = True):
         self.wallet = Keypair.from_bytes(base58.b58decode(private_key))
         if async_client:
             self.client = AsyncClient(endpoint=rpc_url)
@@ -94,7 +96,9 @@ class Wallet:
                                                           mint=Pubkey.from_string(token_mint))
         return token_mint_account
 
-    def sign_send_transaction(self, transaction_data: str, signatures_list: list = None, print_link: bool = False):
+    def sign_send_transaction(self, transaction_data: str,
+                              signatures_list: list = None,
+                              print_link: bool = False):
         signatures = []
 
         raw_transaction = VersionedTransaction.from_bytes(base64.b64decode(transaction_data))
@@ -128,7 +132,9 @@ class Wallet:
 
 # noinspection PyShadowingNames
 class TradeOnJup(Wallet):
-    def __init__(self, rpc_url: str, private_key: str, async_client: bool = True):
+    def __init__(self, rpc_url: str,
+                 private_key: str,
+                 async_client: bool = True):
         super().__init__(rpc_url=rpc_url, private_key=private_key, async_client=async_client)
         self.wallet = Wallet(rpc_url=rpc_url, private_key=private_key, async_client=async_client)
 
@@ -156,8 +162,12 @@ class TradeOnJup(Wallet):
         print(tabulate(balances_df, headers='keys', tablefmt='pretty'))
         return balances_df
 
-    def trade_on_jup(self, input_asset: str, output_asset: str, output_asset_amount: int,
-                     output_asset_slippage_list: list):
+    def trade_on_jup(self, input_asset: str,
+                     output_asset: str,
+                     output_asset_amount: int,
+                     output_asset_slippage_list: list,
+                     print_jup_link: bool = True):
+
         if input_asset not in TOKEN_MINT_INFO.keys() or output_asset not in TOKEN_MINT_INFO.keys():
             raise TokenNotFoundInResources("Input or output asset not found in TOKEN_MINT_INFO")
 
@@ -166,7 +176,8 @@ class TradeOnJup(Wallet):
                      f'&outputMint={TOKEN_MINT_INFO[output_asset]["Address"]}'
                      f'&amount={output_asset_amount}'
                      f'&slippageBps={output_asset_slippage_list[1]}')
-        print(quote_url)
+        if print_jup_link:
+            print(f"{c.GREEN}Quote URL: {quote_url}{c.RESET}")
 
         quote_response = httpx.get(url=quote_url).json()
         swap_data = {
@@ -183,68 +194,39 @@ class TradeOnJup(Wallet):
             f'Transaction sent to swap {input_asset} to {output_asset} with amount {output_asset_amount} and slippage '
             f'{output_asset_slippage_list[1]}, checking transaction status...')
 
-        wallet.get_status_transaction(transaction_hash=wallet.transaction_hash)
+        self.wallet.get_status_transaction(transaction_hash=self.wallet.transaction_hash)
 
 
 if __name__ == "__main__":
-    # wallet = Wallet(rpc_url=RPC_URL,
-    #                 private_key=USER_PRIVATE_KEY,
-    #                 async_client=False)
-
     executor = TradeOnJup(rpc_url=RPC_URL,
                           private_key=USER_PRIVATE_KEY,
                           async_client=False)
     # print balance
-    balances_df = wallet.get_token_balance_df()
+    balances_df = executor.get_token_balance_df()
 
     # trade
-    output_asset_amount = int(0.01 * (10 ** TOKEN_MINT_INFO["USDC"]["Decimals"]))
-    output_asset_slippage_list = [10, 22, 35, 50]
+    input_asset = "USDC"
+    output_asset = "SOL"
 
     trade_pamras = {
-        "input_asset": "SOL",
-        "output_asset": "USDC",
-        "output_asset_amount": output_asset_amount,
-        "output_asset_slippage_list": output_asset_slippage_list
+        "input_asset": input_asset,
+        "output_asset": output_asset,
+        "output_asset_amount": int(0.01 * (10 ** TOKEN_MINT_INFO[input_asset]["Decimals"])),
+        "output_asset_slippage_list": [10, 22, 35, 50],
+        "print_jup_link": True
     }
-    execute_trade = Process(target=TradeOnJup.trade_on_jup,
-                            args=(
-                                trade_pamras["input_asset"],
-                                trade_pamras["output_asset"],
-                                trade_pamras["output_asset_amount"],
-                                trade_pamras["output_asset_slippage_list"]))
-    execute_trade.start()
-    execute_trade.join()
+    execute_trade = executor.trade_on_jup(**trade_pamras)
     # 变化应该是：
-    # SOL
+    # USDC: 0.3555 - 0.01 = 0.3455
+    # SOL: 0.01311 + 0.00009 - 0.00007 = 0.01313
 
+    # check balance again
+    executor.get_token_balance_df()
 
     # USDC有6个decimal，所以1USDC=1000000，SOL有9个，所以1SOL有1000000000，我要交易0.005SOL，应该写5000000
     # quote_url = ('https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112'
     #              '&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=2000000&slippageBps=10')
     # amount = 0.002SOL，那么交易后Solana应该剩0.01278-gas(0.00011)=个，USDC应该0.24+0.2~左右价值
-
-
-    # quote_url = (f'https://quote-api.jup.ag/v6/quote'
-    #              f'?inputMint={TOKEN_MINT_INFO["SOL"]["Address"]}'
-    #              f'&outputMint={TOKEN_MINT_INFO["USDC"]["Address"]}'
-    #              f'&amount={output_asset_amount}'
-    #              f'&slippageBps={output_asset_slippage_list[1]}')
-    # print(quote_url)
-    # # 执行这条的话，USDC到Solana，支付0.1USDC，USDC剩余为0.37216，SOL为0.01267+0.00088-gas(0.00011)=0.01344
-    #
-    # quote_response = httpx.get(url=quote_url).json()
-    # swap_data = {
-    #     "quoteResponse": quote_response,
-    #     "userPublicKey": USER_PUBLIC_KEY,
-    #     "wrapUnwrapSOL": True
-    # }
-    # # print(swap_data)
-    # get_swap_data = httpx.post(url="https://quote-api.jup.ag/v6/swap", json=swap_data).json()
-    # print(get_swap_data)
-    # swap_data = get_swap_data['swapTransaction']
-    #
-    # wallet.sign_send_transaction(transaction_data=swap_data, print_link=True)
 
     """
     执行完这个之后，直接在jup上成交了，基本上全都转化为USDC了，要小心啊，不然可能没有sol支付gas了
