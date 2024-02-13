@@ -216,17 +216,9 @@ if __name__ == "__main__":
         "output_asset_slippage_list": [10, 22, 35, 50]
     }
     execute_trade = executor.trade_on_jup(**trade_pamras)
-    # 变化应该是：
-    # USDC: 0.3555 - 0.01 = 0.3455
-    # SOL: 0.01311 + 0.00009 - 0.00007 = 0.01313
 
     # check balance again
     executor.get_token_balance_df()
-
-    # USDC有6个decimal，所以1USDC=1000000，SOL有9个，所以1SOL有1000000000，我要交易0.005SOL，应该写5000000
-    # quote_url = ('https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112'
-    #              '&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=2000000&slippageBps=10')
-    # amount = 0.002SOL，那么交易后Solana应该剩0.01278-gas(0.00011)=个，USDC应该0.24+0.2~左右价值
 
     """
     执行完这个之后，直接在jup上成交了，基本上全都转化为USDC了，要小心啊，不然可能没有sol支付gas了

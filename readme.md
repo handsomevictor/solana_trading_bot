@@ -1,42 +1,42 @@
 # Solana On-Chain Trading Bot
 
-This project is developed by [@handsomevictor](https://github.com/handsomevictor), a Chinese boy living in Paris.
+This project is owned by [@handsomevictor](https://github.com/handsomevictor), a Chinese boy living in Paris.
 
-This project aims to provide a better tool for people to trade on Web3 most famous exchanges like
-[JUP](https://jup.ag/) etc.
+## Introduction
 
-JUP is mainly for swapping tokens, and I will only use it (instead of using limit orders) to trade.
+The aim of this project is to provide a powerful tool for trading on Web3's most renowned exchanges, such as
+[JUP](https://jup.ag/). JUP is primarily used for swapping tokens, and this tool focuses on utilizing it for trading
+rather than traditional limit orders.
 
-This project belongs to [@handsomevictor](https://github.com/handsomevictor) only,
-all the open-source strategies are without any warranty, and the author
-is not responsible for any loss caused by using this project.
+**Disclaimer**: This project, owned solely by [@handsomevictor](https://github.com/handsomevictor), offers open-source
+strategies without warranty. The author holds no responsibility for any losses incurred while using this project.
 
-Currently, this project only supports trading on JUP using Solana Wallet.
+## Usage
 
-When using the project, remember to create a wallet and transfer some SOL or other tokens to it, and put the public
-and private key to the environment variables, because the project will use them to sign the transactions:
+Before using the project, ensure you have created a wallet, transferred some SOL or other tokens to it, and placed the
+public and private keys in the environment variables. The project utilizes these keys to sign transactions.
 
-```angular2html
+```python
 USER_PUBLIC_KEY = os.environ.get("TEST_USER_PUBLIC_KEY")
 USER_PRIVATE_KEY = os.environ.get("TEST_SOLANA_USER_PRIVATE_KEY")
 ```
 
-## An Example of Calculate the Result
+## Example Calculation
 
-Assume in your Solana wallet, you have 1 SOL and 1USDC, and you want to swap 0.1 SOL to USDC, assume gas fee is
-0.00007 SOL, and the price is 1 SOL = 100 USDC, then after swapping, the result would be:
+Assume your Solana wallet holds 1 SOL and 1 USDC, and you want to swap 0.1 SOL for USDC. Assuming a gas fee of 0.00007
+SOL and a price of 1 SOL = 100 USDC, the result would be:
 
-SOL: 1 - 0.1 (swapping amount in SOL) - 0.00007 (gas fee) = 0.89993
+- SOL: 1 - 0.1 (swapping amount in SOL) - 0.00007 (gas fee) = 0.89993
+- USDC: 1 + 0.1 (swapping amount in SOL) * 100 (exchange rate) = 2
 
-USDC: 1 + 0.1 (swapping amount in SOL) * 100 (exchange rate) = 2
+## Resources
 
-This project is using the documentation provided by [Jup](https://station.jup.ag/docs/apis/swap-api)
+This project utilizes the documentation provided by [Jup](https://station.jup.ag/docs/apis/swap-api)
 and [solana-py](https://michaelhly.com/solana-py/)
 
-## Project Data Source
+## Data Source
 
-This project uses real time data from [Kaiko](https://www.kaiko.com/) and Binance API, but for building trading
-strategies, only Kaiko data was used. If you want to have a look at how Kaiko data can help you, contact me. Remember
-it's not free.
+Real-time data is sourced from Kaiko and the Binance API. However, only Kaiko data is used for building trading
+strategies. If you're interested in leveraging Kaiko data, feel free to reach out. Note that it's not free.
 
-Feb. 13, 2024
+Date: Feb. 13, 2024
