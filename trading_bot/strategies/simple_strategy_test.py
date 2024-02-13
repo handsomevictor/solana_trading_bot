@@ -8,7 +8,7 @@ import pandas as pd
 
 from tools.logging_formatter import logger
 
-import trading_bot.color_functions as c
+import tools.color_functions as c
 from trading_bot.transaction_executor import TradeOnJup
 from trading_bot.resources import (USER_PRIVATE_KEY, TOKEN_MINT_INFO, RPC_URL)
 

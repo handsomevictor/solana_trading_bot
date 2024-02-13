@@ -25,8 +25,8 @@ from spl.token.instructions import get_associated_token_address
 from tools.decorators import func_timeout
 from tools.logging_formatter import logger
 from tools.exceptions_trade import TokenNotFoundInResources
+import tools.color_functions as c
 
-import trading_bot.color_functions as c
 from trading_bot.resources import (USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL,
                                    TRANSACTION_TIMEOUT_SECONDS)
 
