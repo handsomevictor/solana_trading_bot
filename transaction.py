@@ -8,6 +8,7 @@ import asyncio
 from multiprocessing import Process
 import random
 import pandas as pd
+import logging
 
 from datetime import datetime
 
@@ -35,12 +36,15 @@ from spl.token.instructions import get_associated_token_address
 
 from jupiter_python_sdk.jupiter import Jupiter, Jupiter_DCA
 
-from resources import TEST_USER_PUBLIC_KEY, TEST_USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL
-from exceptions import PublicKeyError, TokenNotFoundInResources
+from resources import USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL
+from exceptions_trade import PublicKeyError, TokenNotFoundInResources
 import color_functions as c
+from logging_formatter import console_handler
 
-USER_PRIVATE_KEY = TEST_USER_PRIVATE_KEY
-USER_PUBLIC_KEY = TEST_USER_PUBLIC_KEY
+# create logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(console_handler)
 
 
 # noinspection PyShadowingNames
@@ -97,8 +101,7 @@ class Wallet:
         return token_mint_account
 
     def sign_send_transaction(self, transaction_data: str,
-                              signatures_list: list = None,
-                              print_link: bool = False):
+                              signatures_list: list = None):
         signatures = []
 
         raw_transaction = VersionedTransaction.from_bytes(base64.b64decode(transaction_data))
@@ -114,20 +117,21 @@ class Wallet:
         transaction_hash = json.loads(result.to_json())['result']
 
         self.transaction_hash = transaction_hash
-
-        if print_link is True:
-            print(f"{c.GREEN}Transaction sent: https://explorer.solana.com/tx/{transaction_hash}{c.RESET}")
+        logger.info(f"{c.GREEN}Transaction sent: https://explorer.solana.com/tx/{transaction_hash}{c.RESET}")
 
     def get_status_transaction(self, transaction_hash: str):
-        print("Checking transaction status...This might take 20 seconds.")
+        logger.info(f"{c.GREEN}Checking transaction status...{c.GRAY} This might take 20 seconds.{c.RESET}")
         get_transaction_details = self.client.confirm_transaction(tx_sig=Signature.from_string(transaction_hash),
                                                                   sleep_seconds=1)
         transaction_status = get_transaction_details.value[0].err
 
         if transaction_status is None:
-            print(f"{c.GREEN} Transaction SUCCESS! transaction_hash is {transaction_hash}{c.RESET}")
+            logger.info(f"{c.GREEN} Transaction SUCCESS! {c.RESET}"
+                        f"{c.GRAY} transaction_hash is {transaction_hash}{c.RESET}")
         else:
-            print(f"{c.RED}! Transaction FAILED!{c.RESET}")
+            logger.fatal(f"{c.RED} Transaction FAILED! {c.RESET}"
+                         f"{c.GRAY} transaction_hash is {transaction_hash}{c.RESET}")
+        return 200 if transaction_status is None else 400
 
 
 # noinspection PyShadowingNames
@@ -140,33 +144,30 @@ class TradeOnJup(Wallet):
 
     def get_token_balance_df(self):
         balances_df = pd.DataFrame(columns=["Token", "Balance", "Decimals", "Amount", "int"])
+
         for token in TRADING_TOKENS:
             if token == "SOL":
-                token_balance = self.wallet.get_token_balance(token_mint_account=USER_PUBLIC_KEY)
-                balances_df = pd.concat([balances_df, pd.DataFrame({"Token": token,
-                                                                    "Balance": token_balance['balance']['float'],
-                                                                    "Decimals": TOKEN_MINT_INFO[token]["Decimals"],
-                                                                    "int": token_balance['balance']['int'],
-                                                                    "Amount": token_balance['balance']['float']},
-                                                                   index=[0])])
+                token_mint_account = USER_PUBLIC_KEY
             else:
                 token_mint_account = self.wallet.get_token_mint_account(token_mint=TOKEN_MINT_INFO[token]["Address"])
-                token_balance = self.wallet.get_token_balance(token_mint_account=token_mint_account)
-                balances_df = pd.concat([balances_df, pd.DataFrame({"Token": token,
-                                                                    "Balance": token_balance['balance']['float'],
-                                                                    "Decimals": TOKEN_MINT_INFO[token]["Decimals"],
-                                                                    "int": token_balance['balance']['int'],
-                                                                    "Amount": token_balance['balance']['float']},
-                                                                   index=[0])])
+
+            token_balance = self.wallet.get_token_balance(token_mint_account=token_mint_account)
+            balances_df = pd.concat([balances_df, pd.DataFrame({"Token": token,
+                                                                "Balance": token_balance['balance']['float'],
+                                                                "Decimals": TOKEN_MINT_INFO[token]["Decimals"],
+                                                                "int": token_balance['balance']['int'],
+                                                                "Amount": token_balance['balance']['float']},
+                                                               index=[0])])
+
         balances_df = balances_df.reset_index(drop=True)
-        print(tabulate(balances_df, headers='keys', tablefmt='pretty'))
+
+        logger.info(f"\n{c.YELLOW}Balances: \n{tabulate(balances_df, headers='keys', tablefmt='pretty')}{c.RESET}")
         return balances_df
 
     def trade_on_jup(self, input_asset: str,
                      output_asset: str,
                      output_asset_amount: int,
-                     output_asset_slippage_list: list,
-                     print_jup_link: bool = True):
+                     output_asset_slippage_list: list):
 
         if input_asset not in TOKEN_MINT_INFO.keys() or output_asset not in TOKEN_MINT_INFO.keys():
             raise TokenNotFoundInResources("Input or output asset not found in TOKEN_MINT_INFO")
@@ -176,8 +177,8 @@ class TradeOnJup(Wallet):
                      f'&outputMint={TOKEN_MINT_INFO[output_asset]["Address"]}'
                      f'&amount={output_asset_amount}'
                      f'&slippageBps={output_asset_slippage_list[1]}')
-        if print_jup_link:
-            print(f"{c.GREEN}Quote URL: {quote_url}{c.RESET}")
+
+        logger.info(f"{c.GREEN}Quote URL: {quote_url}{c.RESET}")
 
         quote_response = httpx.get(url=quote_url).json()
         swap_data = {
@@ -189,10 +190,10 @@ class TradeOnJup(Wallet):
         get_swap_data = httpx.post(url="https://quote-api.jup.ag/v6/swap", json=swap_data).json()
         swap_data = get_swap_data['swapTransaction']
 
-        self.wallet.sign_send_transaction(transaction_data=swap_data, print_link=True)
-        print(
-            f'Transaction sent to swap {input_asset} to {output_asset} with amount {output_asset_amount} and slippage '
-            f'{output_asset_slippage_list[1]}, checking transaction status...')
+        self.wallet.sign_send_transaction(transaction_data=swap_data)
+
+        logger.info(f"{c.GRAY}Transaction sent to swap {input_asset} to {output_asset} with amount "
+                    f"{output_asset_amount} and slippage {output_asset_slippage_list[1]}.{c.RESET}")
 
         self.wallet.get_status_transaction(transaction_hash=self.wallet.transaction_hash)
 
@@ -212,8 +213,7 @@ if __name__ == "__main__":
         "input_asset": input_asset,
         "output_asset": output_asset,
         "output_asset_amount": int(0.01 * (10 ** TOKEN_MINT_INFO[input_asset]["Decimals"])),
-        "output_asset_slippage_list": [10, 22, 35, 50],
-        "print_jup_link": True
+        "output_asset_slippage_list": [10, 22, 35, 50]
     }
     execute_trade = executor.trade_on_jup(**trade_pamras)
     # 变化应该是：
