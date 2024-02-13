@@ -27,14 +27,12 @@ console_formatter = ColoredFormatter()
 # 将格式化器添加到处理程序
 console_handler.setFormatter(console_formatter)
 
+# 创建 logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(console_handler)
+
 if __name__ == '__main__':
-    # 创建 logger
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-
-    # 将处理程序添加到 logger
-    logger.addHandler(console_handler)
-
     # 输出日志消息
     logger.debug("This is a debug message.")
     logger.info("This is an info message.")

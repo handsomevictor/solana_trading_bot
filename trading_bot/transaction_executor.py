@@ -1,3 +1,7 @@
+"""
+All logging messages will be handled by the logger in ./trading_bot/logging_formatter.py
+"""
+
 import json
 import base58
 import base64
@@ -25,17 +29,12 @@ from jupiter_python_sdk.jupiter import Jupiter, Jupiter_DCA
 
 from spl.token.instructions import get_associated_token_address
 
-import color_functions as c
-from decorators import func_timeout
-from logging_formatter import console_handler
-from exceptions_trade import PublicKeyError, TokenNotFoundInResources
-from resources import (USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL,
-                       TRANSACTION_TIMEOUT_SECONDS)
-
-# create logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger.addHandler(console_handler)
+import trading_bot.color_functions as c
+from trading_bot.decorators import func_timeout
+from trading_bot.logging_formatter import logger
+from trading_bot.exceptions_trade import PublicKeyError, TokenNotFoundInResources
+from trading_bot.resources import (USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL,
+                                   TRANSACTION_TIMEOUT_SECONDS)
 
 
 # noinspection PyShadowingNames
