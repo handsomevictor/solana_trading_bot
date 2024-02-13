@@ -1,6 +1,11 @@
 # macOS system files
 .DS_Store
 
+# Database and records
+trading_bot/records/
+trading_bot/database/
+
+
 # Compiled Python files
 *.pyc
 __pycache__/
