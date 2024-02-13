@@ -33,6 +33,16 @@ SOL and a price of 1 SOL = 100 USDC, the result would be:
 - SOL: 1 - 0.1 (swapping amount in SOL) - 0.00007 (gas fee) = 0.89993
 - USDC: 1 + 0.1 (swapping amount in SOL) * 100 (exchange rate) = 2
 
+## Email Notification
+
+If you want to use it, register an account on Outlook (or any other email service) and enable the SMTP server,
+and change the following parameters in `./tools/resources.py` or add them to your environment variables:
+
+- SMTP_SERVER
+- SMTP_PORT
+- SENDER_EMAIL
+- EMAIL_PASSWORD
+
 ## Reminders
 
 - Never trade all your SOL. Always leave some for gas fees.
