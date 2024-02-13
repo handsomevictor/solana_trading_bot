@@ -52,7 +52,8 @@ and change the following parameters in `./tools/resources.py` or add them to you
 ## Resourcess
 
 This project utilizes the documentation provided by [Jup](https://station.jup.ag/docs/apis/swap-api)
-and [solana-py](https://michaelhly.com/solana-py/)
+and [solana-py](https://michaelhly.com/solana-py/), also took some pieces of code
+from [0xTaoDev](https://github.com/0xTaoDev/jupiter-python-cli)
 
 ## Data Source
 
