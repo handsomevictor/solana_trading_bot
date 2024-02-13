@@ -1,45 +1,34 @@
 import json
 import base58
 import base64
-import time
-import re
 import httpx
-import asyncio
-from multiprocessing import Process
-import random
-import pandas as pd
 import logging
-
-from datetime import datetime
-
+import datetime
+import pandas as pd
+from tabulate import tabulate
 from InquirerPy import inquirer
 
-from tabulate import tabulate
-import pandas as pd
-
-from yaspin import yaspin
-
 from solders import message
-from solders.keypair import Keypair
 from solders.pubkey import Pubkey
-from solders.transaction import VersionedTransaction
+from solders.keypair import Keypair
 from solders.signature import Signature
+from solders.transaction import VersionedTransaction
 from solders.system_program import transfer, TransferParams
 
-from solana.rpc.async_api import AsyncClient
 from solana.rpc.api import Client
-from solana.rpc.commitment import Processed
 from solana.rpc.types import TxOpts
 from solana.transaction import Transaction
+from solana.rpc.commitment import Processed
+from solana.rpc.async_api import AsyncClient
 
 from spl.token.instructions import get_associated_token_address
 
 from jupiter_python_sdk.jupiter import Jupiter, Jupiter_DCA
 
-from resources import USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL
-from exceptions_trade import PublicKeyError, TokenNotFoundInResources
 import color_functions as c
 from logging_formatter import console_handler
+from exceptions_trade import PublicKeyError, TokenNotFoundInResources
+from resources import USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL
 
 # create logger
 logger = logging.getLogger(__name__)
@@ -68,40 +57,36 @@ class Wallet:
         """
         if token_mint_account == self.wallet.pubkey().__str__():
             get_token_balance = self.client.get_balance(pubkey=self.wallet.pubkey())
-            return {
-                'decimals': TOKEN_MINT_INFO["SOL"]["Decimals"],
-                'balance': {
-                    'int': get_token_balance.value,
-                    'float': float(get_token_balance.value / 10 ** 9)
-                }
-            }
+
+            decimals = TOKEN_MINT_INFO["SOL"]["Decimals"]
+            balance_int = get_token_balance.value
+            balance_float = float(get_token_balance.value / 10 ** 9)
+
         else:
             get_token_balance = self.client.get_token_account_balance(pubkey=token_mint_account)
             try:
-                token_balance = {
-                    'decimals': int(get_token_balance.value.decimals),
-                    'balance': {
-                        'int': get_token_balance.value.amount,
-                        'float': float(get_token_balance.value.amount) / 10 ** int(get_token_balance.value.decimals)
-                    }
-                }
+                decimals = int(get_token_balance.value.decimals)
+                balance_int = get_token_balance.value.amount
+                balance_float = float(get_token_balance.value.amount) / 10 ** int(get_token_balance.value.decimals)
+
             except AttributeError:
-                token_balance = {'decimals': -1, 'balance': {'int': 0, 'float': 0}}
-            return token_balance
-            # later will add operations on multiple wallets
+                decimals = -1
+                balance_int = 0
+                balance_float = 0
+
+        token_balance = {'decimals': decimals, 'balance': {'int': balance_int, 'float': balance_float}}
+        return token_balance
 
     def get_token_mint_account(self, token_mint: str) -> Pubkey:
         token_mint_account = get_associated_token_address(owner=self.wallet.pubkey(),
                                                           mint=Pubkey.from_string(token_mint))
         return token_mint_account
 
-    def get_token_mint_account_no_async(self, token_mint: str) -> Pubkey:
-        token_mint_account = get_associated_token_address(owner=self.wallet.pubkey(),
-                                                          mint=Pubkey.from_string(token_mint))
-        return token_mint_account
-
     def sign_send_transaction(self, transaction_data: str,
                               signatures_list: list = None):
+        """
+        STARTS THE TRANSACTION HERE!
+        """
         signatures = []
 
         raw_transaction = VersionedTransaction.from_bytes(base64.b64decode(transaction_data))
@@ -166,19 +151,22 @@ class TradeOnJup(Wallet):
 
     def trade_on_jup(self, input_asset: str,
                      output_asset: str,
-                     output_asset_amount: int,
-                     output_asset_slippage_list: list):
-
+                     input_asset_amount: int,
+                     output_asset_slippage_list: list) -> int:
+        """
+        STARTS THE TRADE ON JUPITER
+        :return: status code either 200 (success) or 400 (failure)
+        """
         if input_asset not in TOKEN_MINT_INFO.keys() or output_asset not in TOKEN_MINT_INFO.keys():
             raise TokenNotFoundInResources("Input or output asset not found in TOKEN_MINT_INFO")
 
         quote_url = (f'https://quote-api.jup.ag/v6/quote'
                      f'?inputMint={TOKEN_MINT_INFO[input_asset]["Address"]}'
                      f'&outputMint={TOKEN_MINT_INFO[output_asset]["Address"]}'
-                     f'&amount={output_asset_amount}'
+                     f'&amount={input_asset_amount}'
                      f'&slippageBps={output_asset_slippage_list[1]}')
 
-        logger.info(f"{c.GREEN}Quote URL: {quote_url}{c.RESET}")
+        logger.debug(f"{c.GREEN}Quote URL: {quote_url}{c.RESET}")
 
         quote_response = httpx.get(url=quote_url).json()
         swap_data = {
@@ -193,9 +181,9 @@ class TradeOnJup(Wallet):
         self.wallet.sign_send_transaction(transaction_data=swap_data)
 
         logger.info(f"{c.GRAY}Transaction sent to swap {input_asset} to {output_asset} with amount "
-                    f"{output_asset_amount} and slippage {output_asset_slippage_list[1]}.{c.RESET}")
+                    f"{input_asset_amount} and slippage {output_asset_slippage_list[1]}.{c.RESET}")
 
-        self.wallet.get_status_transaction(transaction_hash=self.wallet.transaction_hash)
+        return self.wallet.get_status_transaction(transaction_hash=self.wallet.transaction_hash)
 
 
 if __name__ == "__main__":
@@ -203,23 +191,24 @@ if __name__ == "__main__":
                           private_key=USER_PRIVATE_KEY,
                           async_client=False)
     # print balance
-    balances_df = executor.get_token_balance_df()
+    original_balances_df = executor.get_token_balance_df()
 
     # trade
     input_asset = "USDC"
     output_asset = "SOL"
+    input_asset_amount = 0.01
 
     trade_pamras = {
         "input_asset": input_asset,
         "output_asset": output_asset,
-        "output_asset_amount": int(0.01 * (10 ** TOKEN_MINT_INFO[input_asset]["Decimals"])),
+        "input_asset_amount": int(input_asset_amount * (10 ** TOKEN_MINT_INFO[input_asset]["Decimals"])),
         "output_asset_slippage_list": [10, 22, 35, 50]
     }
     execute_trade = executor.trade_on_jup(**trade_pamras)
 
-    # check balance again
-    executor.get_token_balance_df()
+    if execute_trade != 200:
+        pass  # do something
 
-    """
-    执行完这个之后，直接在jup上成交了，基本上全都转化为USDC了，要小心啊，不然可能没有sol支付gas了
-    """
+    # check balance again
+    current_balances_df = executor.get_token_balance_df()
+

@@ -29,7 +29,13 @@ SOL and a price of 1 SOL = 100 USDC, the result would be:
 - SOL: 1 - 0.1 (swapping amount in SOL) - 0.00007 (gas fee) = 0.89993
 - USDC: 1 + 0.1 (swapping amount in SOL) * 100 (exchange rate) = 2
 
-## Resources
+## Reminders
+
+- Never trade all your SOL. Always leave some for gas fees.
+- No matter if a trade is made or not, as long as it's sent to the blockchain, a gas fee will be charged (range is
+  usually 0.00006 - 0.00015 SOL but can be higher).
+
+## Resourcess
 
 This project utilizes the documentation provided by [Jup](https://station.jup.ag/docs/apis/swap-api)
 and [solana-py](https://michaelhly.com/solana-py/)
