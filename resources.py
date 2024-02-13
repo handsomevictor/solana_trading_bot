@@ -23,6 +23,8 @@ TOKEN_MINT_INFO = {
 TEST_USER_PUBLIC_KEY = os.environ.get("TEST_USER_PUBLIC_KEY")
 TEST_USER_PRIVATE_KEY = os.environ.get("TEST_SOLANA_USER_PRIVATE_KEY")
 
+TRADING_TOKENS = ["SOL", "USDC", "USDT", "JitoSOL"]
+
 
 if __name__ == '__main__':
     print(TOKEN_MINT_INFO)
