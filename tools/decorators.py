@@ -12,7 +12,7 @@ def func_timeout(seconds):
         @wraps(func)
         def wrapper(*args, **kwargs):
             def handler(signum, frame):
-                raise TimeoutError("Function execution timed out")
+                raise TimeoutError(f"Function {func.__name__} timed out after {seconds} seconds.")
 
             # Raised when the signal is received
             signal.signal(signal.SIGALRM, handler)

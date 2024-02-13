@@ -2,7 +2,7 @@
 .DS_Store
 
 # Database and records
-trading_bot/records/
+trading_bot/strategies/records/
 trading_bot/database/
 
 

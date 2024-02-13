@@ -3,27 +3,25 @@ Swap from USDC to SOL every minute: 0.01 USDC to SOL with slippage 10, 22, 35, 5
 """
 import os
 import json
-import logging
 import datetime
 import pandas as pd
-from tabulate import tabulate
 
+from tools.logging_formatter import logger
+
+import trading_bot.color_functions as c
 from trading_bot.transaction_executor import TradeOnJup
-from trading_bot.logging_formatter import logger
-
-from trading_bot.resources import (USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL,
-                                   TRANSACTION_TIMEOUT_SECONDS)
+from trading_bot.resources import (USER_PRIVATE_KEY, TOKEN_MINT_INFO, RPC_URL)
 
 
 def write_to_records(balances_df: pd.DataFrame):
     # write to records as json file, always use add mode
-    with open("records.json", "a") as f:
+    with open(os.path.join(os.path.dirname(__file__), "records", "records.json"), "a") as f:
         f.write(str(datetime.datetime.now()))
         f.write("\n")
         f.write(json.dumps(balances_df.to_dict()))
-        f.write("\n")
-        f.write("-" * 50)
-    logger.info(f"{c.GREEN}Records written to records.json at {datetime.datetime.now()}\n{c.RESET}")
+        f.write("\n\n")
+    logger.info(f"{c.GREEN}Records written to records.json at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} "
+                f"to ./trading_bot/strategies/records/records.json{c.RESET}")
 
 
 def main():
@@ -56,3 +54,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    print(os.path.dirname(__file__))
