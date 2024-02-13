@@ -25,6 +25,7 @@ TEST_USER_PRIVATE_KEY = os.environ.get("TEST_SOLANA_USER_PRIVATE_KEY")
 
 TRADING_TOKENS = ["SOL", "USDC", "USDT", "JitoSOL"]
 
+RPC_URL = "https://api.mainnet-beta.solana.com"
 
 if __name__ == '__main__':
     print(TOKEN_MINT_INFO)

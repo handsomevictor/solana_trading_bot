@@ -22,5 +22,8 @@ TEST_USER_PRIVATE_KEY = os.environ.get("TEST_SOLANA_USER_PRIVATE_KEY")
 This project is using the documentation provided by [Jup](https://station.jup.ag/docs/apis/swap-api)
 and [solana-py](https://michaelhly.com/solana-py/)
 
+This project uses real time data from [Kaiko](https://www.kaiko.com/) and Binance API, but for building trading
+strategies, only Kaiko data was used. If you want to have a look at how Kaiko data can help you, contact me. Remember
+it's not free.
 
 Feb. 13, 2024

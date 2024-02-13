@@ -35,17 +35,16 @@ from spl.token.instructions import get_associated_token_address
 
 from jupiter_python_sdk.jupiter import Jupiter, Jupiter_DCA
 
-from resources import TEST_USER_PUBLIC_KEY, TEST_USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS
+from resources import TEST_USER_PUBLIC_KEY, TEST_USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL
+from exceptions import PublicKeyError, TokenNotFoundInResources
 import color_functions as c
 
-
-# make PublicKeyError
-class PublicKeyError(Exception):
-    pass
+USER_PRIVATE_KEY = TEST_USER_PRIVATE_KEY
+USER_PUBLIC_KEY = TEST_USER_PUBLIC_KEY
 
 
 # noinspection PyShadowingNames
-class Wallet():
+class Wallet:
 
     def __init__(self, rpc_url: str, private_key: str, async_client: bool = True):
         self.wallet = Keypair.from_bytes(base58.b58decode(private_key))
@@ -53,6 +52,7 @@ class Wallet():
             self.client = AsyncClient(endpoint=rpc_url)
         else:
             self.client = Client(endpoint=rpc_url)
+        self.transaction_hash = None
 
     def get_token_balance(self, token_mint_account: Pubkey) -> dict:
         """
@@ -94,7 +94,7 @@ class Wallet():
                                                           mint=Pubkey.from_string(token_mint))
         return token_mint_account
 
-    def sign_send_transaction(self, transaction_data: str, signatures_list: list = None, print_link: bool = True):
+    def sign_send_transaction(self, transaction_data: str, signatures_list: list = None, print_link: bool = False):
         signatures = []
 
         raw_transaction = VersionedTransaction.from_bytes(base64.b64decode(transaction_data))
@@ -109,204 +109,122 @@ class Wallet():
         result = self.client.send_raw_transaction(txn=bytes(signed_txn), opts=opts)
         transaction_hash = json.loads(result.to_json())['result']
 
-        self.get_status_transaction(transaction_hash=transaction_hash)
+        self.transaction_hash = transaction_hash
+
         if print_link is True:
             print(f"{c.GREEN}Transaction sent: https://explorer.solana.com/tx/{transaction_hash}{c.RESET}")
 
     def get_status_transaction(self, transaction_hash: str):
-        print("Checking transaction status...")
+        print("Checking transaction status...This might take 20 seconds.")
         get_transaction_details = self.client.confirm_transaction(tx_sig=Signature.from_string(transaction_hash),
                                                                   sleep_seconds=1)
         transaction_status = get_transaction_details.value[0].err
 
         if transaction_status is None:
-            print(f"Transaction SUCCESS! transaction_hash is {transaction_hash}")
+            print(f"{c.GREEN} Transaction SUCCESS! transaction_hash is {transaction_hash}{c.RESET}")
         else:
             print(f"{c.RED}! Transaction FAILED!{c.RESET}")
 
 
-snipers_processes = []
+# noinspection PyShadowingNames
+class TradeOnJup(Wallet):
+    def __init__(self, rpc_url: str, private_key: str, async_client: bool = True):
+        super().__init__(rpc_url=rpc_url, private_key=private_key, async_client=async_client)
+        self.wallet = Wallet(rpc_url=rpc_url, private_key=private_key, async_client=async_client)
 
-
-class Token_Sniper:
-
-    def __init__(self, token_id, token_data):
-        self.token_id = token_id
-        self.token_data = token_data
-        self.success = False
-
-    def snipe_token(self):
-
-        tokens_data = Config_CLI.get_tokens_data_no_async()
-        config_data = Config_CLI.get_config_data_no_async()
-        wallets = Wallets_CLI.get_wallets_no_async()
-        wallet = Wallet(rpc_url=config_data['RPC_URL'],
-                        private_key=wallets[str(tokens_data[self.token_id]['WALLET'])]['private_key'],
-                        async_client=False)
-        token_account = wallet.get_token_mint_account_no_async(self.token_data['ADDRESS'])
-        token_balance = wallet.get_token_balance_no_async(token_mint_account=token_account)
-
-        while True:
-            if self.token_data['STATUS'] in ["NOT IN", "ERROR WHEN SWAPPING"]:
-
-                while True:
-                    if self.token_data['TIMESTAMP'] is None:
-                        time.sleep(1)
-                    elif self.token_data['TIMESTAMP'] is not None:
-                        sleep_time = self.token_data['TIMESTAMP'] - int(time.time()) - 3
-                        try:
-                            time.sleep(sleep_time)
-                        except ValueError:
-                            pass
-
-                    sol_price = f.get_crypto_price('SOL')
-                    amount = int((self.token_data['BUY_AMOUNT'] * 10 ** 9) / sol_price)
-                    quote_url = "https://quote-api.jup.ag/v6/quote?" + f"inputMint=So11111111111111111111111111111111111111112" + f"&outputMint={self.token_data['ADDRESS']}" + f"&amount={amount}" + f"&slippageBps={int(self.token_data['SLIPPAGE_BPS'])}"
-                    quote_response = httpx.get(url=quote_url).json()
-
-                    try:
-                        if quote_response['error']:
-                            time.sleep(1)
-                    except:
-                        break
-
-                swap_data = {
-                    "quoteResponse": quote_response,
-                    "userPublicKey": wallet.wallet.pubkey().__str__(),
-                    "wrapUnwrapSOL": True
-                }
-
-                retries = 0
-                while True:
-                    try:
-                        get_swap_data = httpx.post(url="https://quote-api.jup.ag/v6/swap", json=swap_data).json()
-                        swap_data = get_swap_data['swapTransaction']
-                        wallet.sign_send_transaction_no_async(transaction_data=swap_data, print_link=False)
-                        self.success = True
-                        break
-                    except:
-                        if retries == 3:
-                            self.success = False
-                            break
-                        retries += 1
-                        time.sleep(0.5)
-
-                if self.success is True:
-                    tokens_data[self.token_id]['STATUS'] = "IN"
-                    self.token_data['STATUS'] = "IN"
-                    alert_message = f"{self.token_data['NAME']} ({self.token_data['ADDRESS']}): IN"
-                    f.send_discord_alert(alert_message)
-                    f.send_telegram_alert(alert_message)
-                else:
-                    tokens_data[self.token_id]['STATUS'] = "ERROR ON SWAPPING"
-                    self.token_data['STATUS'] = "ERROR WHEN SWAPPING"
-                    alert_message = f"{self.token_data['NAME']} ({self.token_data['ADDRESS']}): BUY FAILED"
-                    f.send_discord_alert(alert_message)
-                    f.send_telegram_alert(alert_message)
-                Config_CLI.edit_tokens_file_no_async(tokens_data)
-
-            elif self.token_data['STATUS'] not in ["NOT IN", "ERROR WHEN SWAPPING"] and not self.token_data[
-                'STATUS'].startswith('> '):
-                time.sleep(1)
-                sol_price = f.get_crypto_price('SOL')
-                quote_url = "https://quote-api.jup.ag/v6/quote?" + f"inputMint={self.token_data['ADDRESS']}" + f"&outputMint=So11111111111111111111111111111111111111112" + f"&amount={token_balance['balance']['int']}" + f"&slippageBps={int(self.token_data['SLIPPAGE_BPS'])}"
-                quote_response = httpx.get(quote_url).json()
-                try:
-                    out_amount = (int(quote_response['outAmount']) / 10 ** 9) * sol_price
-
-                    amount_usd = out_amount
-
-                    if amount_usd < self.token_data['STOP_LOSS'] or amount_usd > self.token_data['TAKE_PROFIT']:
-                        swap_data = {
-                            "quoteResponse": quote_response,
-                            "userPublicKey": wallet.wallet.pubkey().__str__(),
-                            "wrapUnwrapSOL": True
-                        }
-                        get_swap_data = httpx.post(url="https://quote-api.jup.ag/v6/swap", json=swap_data).json()
-                        swap_data = get_swap_data['swapTransaction']
-                        wallet.sign_send_transaction_no_async(transaction_data=swap_data, print_link=False)
-
-                        if amount_usd < self.token_data['STOP_LOSS']:
-                            tokens_data[self.token_id]['STATUS'] = f"> STOP LOSS"
-                            alert_message = f"{self.token_data['NAME']} ({self.token_data['ADDRESS']}): STOP LOSS @ ${amount_usd}"
-                            f.send_discord_alert(alert_message)
-                            f.send_telegram_alert(alert_message)
-                        elif amount_usd > self.token_data['TAKE_PROFIT']:
-                            tokens_data[self.token_id]['STATUS'] = f"> TAKE PROFIT"
-                            alert_message = f"{self.token_data['NAME']} ({self.token_data['ADDRESS']}): TAKE PROFIT @ ${amount_usd}"
-                            f.send_discord_alert(alert_message)
-                            f.send_telegram_alert(alert_message)
-
-                        Config_CLI.edit_tokens_file_no_async(tokens_data)
-                        break
-                # If token balance not synchronized yet (on buy)
-                except:
-                    pass
-
+    def get_token_balance_df(self):
+        balances_df = pd.DataFrame(columns=["Token", "Balance", "Decimals", "Amount", "int"])
+        for token in TRADING_TOKENS:
+            if token == "SOL":
+                token_balance = self.wallet.get_token_balance(token_mint_account=USER_PUBLIC_KEY)
+                balances_df = pd.concat([balances_df, pd.DataFrame({"Token": token,
+                                                                    "Balance": token_balance['balance']['float'],
+                                                                    "Decimals": TOKEN_MINT_INFO[token]["Decimals"],
+                                                                    "int": token_balance['balance']['int'],
+                                                                    "Amount": token_balance['balance']['float']},
+                                                                   index=[0])])
             else:
-                break
+                token_mint_account = self.wallet.get_token_mint_account(token_mint=TOKEN_MINT_INFO[token]["Address"])
+                token_balance = self.wallet.get_token_balance(token_mint_account=token_mint_account)
+                balances_df = pd.concat([balances_df, pd.DataFrame({"Token": token,
+                                                                    "Balance": token_balance['balance']['float'],
+                                                                    "Decimals": TOKEN_MINT_INFO[token]["Decimals"],
+                                                                    "int": token_balance['balance']['int'],
+                                                                    "Amount": token_balance['balance']['float']},
+                                                                   index=[0])])
+        balances_df = balances_df.reset_index(drop=True)
+        print(tabulate(balances_df, headers='keys', tablefmt='pretty'))
+        return balances_df
 
-    @staticmethod
-    async def run():
-        """Starts all the sniper token instance"""
-        tokens_snipe = await Config_CLI.get_tokens_data()
-        for token_id, token_data in tokens_snipe.items():
-            token_sniper_instance = Token_Sniper(token_id, token_data)
-            process = Process(target=token_sniper_instance.snipe_token, args=())
-            snipers_processes.append(process)
+    def trade_on_jup(self, input_asset: str, output_asset: str, output_asset_amount: int,
+                     output_asset_slippage_list: list):
+        if input_asset not in TOKEN_MINT_INFO.keys() or output_asset not in TOKEN_MINT_INFO.keys():
+            raise TokenNotFoundInResources("Input or output asset not found in TOKEN_MINT_INFO")
 
-        for sniper_process in snipers_processes:
-            sniper_process.start()
+        quote_url = (f'https://quote-api.jup.ag/v6/quote'
+                     f'?inputMint={TOKEN_MINT_INFO[input_asset]["Address"]}'
+                     f'&outputMint={TOKEN_MINT_INFO[output_asset]["Address"]}'
+                     f'&amount={output_asset_amount}'
+                     f'&slippageBps={output_asset_slippage_list[1]}')
+        print(quote_url)
+
+        quote_response = httpx.get(url=quote_url).json()
+        swap_data = {
+            "quoteResponse": quote_response,
+            "userPublicKey": USER_PUBLIC_KEY,
+            "wrapUnwrapSOL": True
+        }
+
+        get_swap_data = httpx.post(url="https://quote-api.jup.ag/v6/swap", json=swap_data).json()
+        swap_data = get_swap_data['swapTransaction']
+
+        self.wallet.sign_send_transaction(transaction_data=swap_data, print_link=True)
+        print(
+            f'Transaction sent to swap {input_asset} to {output_asset} with amount {output_asset_amount} and slippage '
+            f'{output_asset_slippage_list[1]}, checking transaction status...')
+
+        wallet.get_status_transaction(transaction_hash=wallet.transaction_hash)
 
 
 if __name__ == "__main__":
-    wallet = Wallet(rpc_url="https://api.mainnet-beta.solana.com",
-                    private_key=TEST_USER_PRIVATE_KEY,
-                    async_client=False)
+    # wallet = Wallet(rpc_url=RPC_URL,
+    #                 private_key=USER_PRIVATE_KEY,
+    #                 async_client=False)
 
-    # Print all balances
-    balances_df = pd.DataFrame(columns=["Token", "Balance", "Decimals", "Amount", "int"])
-    for token in TRADING_TOKENS:
-        if token == "SOL":
-            token_balance = wallet.get_token_balance(token_mint_account=TEST_USER_PUBLIC_KEY)
-            balances_df = pd.concat([balances_df, pd.DataFrame({"Token": token,
-                                                                "Balance": token_balance['balance']['float'],
-                                                                "Decimals": TOKEN_MINT_INFO[token]["Decimals"],
-                                                                "int": token_balance['balance']['int'],
-                                                                "Amount": token_balance['balance']['float']},
-                                                               index=[0])])
-        else:
-            token_mint_account = wallet.get_token_mint_account(token_mint=TOKEN_MINT_INFO[token]["Address"])
-            token_balance = wallet.get_token_balance(token_mint_account=token_mint_account)
-            balances_df = pd.concat([balances_df, pd.DataFrame({"Token": token,
-                                                                "Balance": token_balance['balance']['float'],
-                                                                "Decimals": TOKEN_MINT_INFO[token]["Decimals"],
-                                                                "int": token_balance['balance']['int'],
-                                                                "Amount": token_balance['balance']['float']},
-                                                               index=[0])])
-    balances_df = balances_df.reset_index(drop=True)
-    print(tabulate(balances_df, headers='keys', tablefmt='pretty'))
+    executor = TradeOnJup(rpc_url=RPC_URL,
+                          private_key=USER_PRIVATE_KEY,
+                          async_client=False)
+    # print balance
+    balances_df = wallet.get_token_balance_df()
 
-    # token_balance = wallet.get_token_balance(token_mint_account=TEST_USER_PUBLIC_KEY)
-    # print(f'SOL balance: {token_balance}')
-    #
-    # token_mint_account = wallet.get_token_mint_account(token_mint=TOKEN_MINT_INFO["USDC"]["Address"])
-    # print(f'token mint account type: {type(token_mint_account)}')
-    #
-    # print(TOKEN_MINT_INFO["USDC"]["Address"])
-    # token_balance = wallet.get_token_balance(token_mint_account=token_mint_account)
-    # print(f'USDC balance: {token_balance}')
+    # trade
+    output_asset_amount = int(0.01 * (10 ** TOKEN_MINT_INFO["USDC"]["Decimals"]))
+    output_asset_slippage_list = [10, 22, 35, 50]
+
+    trade_pamras = {
+        "input_asset": "SOL",
+        "output_asset": "USDC",
+        "output_asset_amount": output_asset_amount,
+        "output_asset_slippage_list": output_asset_slippage_list
+    }
+    execute_trade = Process(target=TradeOnJup.trade_on_jup,
+                            args=(
+                                trade_pamras["input_asset"],
+                                trade_pamras["output_asset"],
+                                trade_pamras["output_asset_amount"],
+                                trade_pamras["output_asset_slippage_list"]))
+    execute_trade.start()
+    execute_trade.join()
+    # 变化应该是：
+    # SOL
+
 
     # USDC有6个decimal，所以1USDC=1000000，SOL有9个，所以1SOL有1000000000，我要交易0.005SOL，应该写5000000
     # quote_url = ('https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112'
     #              '&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=2000000&slippageBps=10')
     # amount = 0.002SOL，那么交易后Solana应该剩0.01278-gas(0.00011)=个，USDC应该0.24+0.2~左右价值
 
-    # output_asset_amount = 0.01 * (10 ** TOKEN_MINT_INFO["USDC"]["Decimals"])
-    # # remove the decimal point
-    # output_asset_amount = int(output_asset_amount)
-    #
-    # output_asset_slippage_list = [20, 50, 100]
+
     # quote_url = (f'https://quote-api.jup.ag/v6/quote'
     #              f'?inputMint={TOKEN_MINT_INFO["SOL"]["Address"]}'
     #              f'&outputMint={TOKEN_MINT_INFO["USDC"]["Address"]}'
@@ -318,7 +236,7 @@ if __name__ == "__main__":
     # quote_response = httpx.get(url=quote_url).json()
     # swap_data = {
     #     "quoteResponse": quote_response,
-    #     "userPublicKey": TEST_USER_PUBLIC_KEY,
+    #     "userPublicKey": USER_PUBLIC_KEY,
     #     "wrapUnwrapSOL": True
     # }
     # # print(swap_data)
@@ -327,7 +245,7 @@ if __name__ == "__main__":
     # swap_data = get_swap_data['swapTransaction']
     #
     # wallet.sign_send_transaction(transaction_data=swap_data, print_link=True)
-    #
-    # """
-    # 执行完这个之后，直接在jup上成交了，基本上全都转化为USDC了，要小心啊，不然可能没有sol支付gas了
-    # """
+
+    """
+    执行完这个之后，直接在jup上成交了，基本上全都转化为USDC了，要小心啊，不然可能没有sol支付gas了
+    """
