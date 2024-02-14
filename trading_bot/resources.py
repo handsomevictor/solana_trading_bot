@@ -29,8 +29,12 @@ RPC_URL = "https://api.mainnet-beta.solana.com"
 
 TRANSACTION_TIMEOUT_SECONDS = 5
 
+# Judge if there is key in the environment
+if not USER_PUBLIC_KEY or not USER_PRIVATE_KEY:
+    raise ValueError("Please set the environment variables for USER_PUBLIC_KEY and USER_PRIVATE_KEY")
+
 
 if __name__ == '__main__':
     print(TOKEN_MINT_INFO)
-    print(TEST_USER_PUBLIC_KEY)
-    print(TEST_USER_PRIVATE_KEY)
+    print(USER_PUBLIC_KEY)
+    print(USER_PRIVATE_KEY)
