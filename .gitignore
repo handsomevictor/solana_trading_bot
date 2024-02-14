@@ -2,8 +2,8 @@
 .DS_Store
 
 # Database and records
-trading_bot/strategies/records/
-trading_bot/database/
+strategies/records/
+database/
 
 
 # Compiled Python files
