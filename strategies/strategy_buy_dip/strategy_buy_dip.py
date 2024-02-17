@@ -36,11 +36,21 @@ import pandas as pd
 
 from strategies.strategy_buy_dip.influxdb_tool import save_records_to_influxdb
 
+from trading_bot.transaction_executor import TradeOnJup
+from trading_bot.resources import (USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL,
+                                   TRANSACTION_TIMEOUT_SECONDS)
 
 class BuyInstantDip:
     def __init__(self, base, quote, dip_level, upload_records_measurement_name, bucket_name, abnormal_price_range=0.05):
         self.base = base
         self.quote = quote
+
+        self.executor = TradeOnJup(rpc_url=RPC_URL,
+                                   private_key=USER_PRIVATE_KEY,
+                                   async_client=False)
+        # check balance
+        self.executor.get_token_balance_df()
+
         self.dip_level = [0.01, 0.046] if dip_level is None else dip_level
         self.mid_dip_level = (self.dip_level[0] + self.dip_level[1]) / 2
 
@@ -168,14 +178,12 @@ class BuyInstantDip:
                 print(f"At {current_time.strftime('%Y-%m-%d %H:%M:%S')}, already sold, do nothing")
                 return None
             elif self.position == 1:
-                ## 检查现在的价格是否低的离谱，如果不是，则卖出
                 self.__sell_instantly()
                 self.position = 0
             else:
                 print(f"Unknown position: {self.position}")
 
         else:
-            # print(f"At {current_time.strftime('%Y-%m-%d %H:%M:%S')}, neither dip nor back to normal, do nothing")
             return None
 
         status = self.__transaction_status()  # 耗时较长，所以只在position发生变化时才调用
@@ -195,6 +203,8 @@ class BuyInstantDip:
         print(f"Saved records to {records_path}")
         self.records = pd.DataFrame(columns=["time", "record", "status", "current_position", "buy_price",
                                              "sell_price", "time_elapsed"])
+        # 打印一下balance
+        original_balances_df = self.executor.get_token_balance_df()
 
     def run_strategy(self):
         start_time = time.time()
@@ -210,6 +220,8 @@ class BuyInstantDip:
                     save_records_to_influxdb(measurement_name=self.upload_records_measurement_name,
                                              bucket_name=self.bucket_name,
                                              records_path=os.path.join(TMP_DATABASE_DIR, f"{base}_{quote}_records.csv"))
+                    # check balance - very fast, almost have no impact on the performance
+                    self.executor.get_token_balance_df()
 
                 # If it takes more than 1 minute before selling, sell it
                 if time.time() - self.sell_start_time > 60 and self.position == 1:
@@ -258,6 +270,24 @@ if __name__ == '__main__':
     strategy.run_strategy()
 
 
+    # input_asset = quote
+    # output_asset = base
+    # input_asset_amount = 0.01
+    #
+    # trade_pamras = {
+    #     "input_asset": input_asset,
+    #     "output_asset": output_asset,
+    #     "input_asset_amount": int(input_asset_amount * (10 ** TOKEN_MINT_INFO[input_asset]["Decimals"])),
+    #     "output_asset_slippage_list": [10, 22, 35, 50],
+    #     "jup_post_request_timeout_seconds": 10,
+    # }
+    # execute_trade = executor.trade_on_jup(**trade_pamras)
+    #
+    # if execute_trade != 200:
+    #     pass  # do something
+    #
+    # # check balance again
+    # current_balances_df = executor.get_token_balance_df()
 
 
 
