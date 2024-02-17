@@ -2,7 +2,7 @@
 .DS_Store
 
 # Database and records
-strategies/records/
+strategies/strategy_buy_dip/records/
 database/
 
 
