@@ -34,6 +34,9 @@ import requests
 import threading
 import pandas as pd
 
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from strategies.strategy_buy_dip.influxdb_tool import save_records_to_influxdb
 
 from trading_bot.transaction_executor import TradeOnJup
