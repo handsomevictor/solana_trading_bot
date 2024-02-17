@@ -43,6 +43,7 @@ class BuyInstantDip:
         self.mid_dip_level = (self.dip_level[0] + self.dip_level[1]) / 2
 
         self.first_dip_price = None
+        self.latest_price = None
 
         self.position = 0
         self.sell_start_time = time.time()  # this is for forced selling after 60 seconds of buying without selling
@@ -55,7 +56,8 @@ class BuyInstantDip:
         # the following records are for trading - only the latest 100 records will be kept
         self.records_for_trading = pd.DataFrame(columns=["time", "base_id", "quote_id", "price", "time_delay",
                                                          "gas_fee", "record", "status"])
-        self.records = pd.DataFrame(columns=["time", "record", "status", "current_position", "time_elapsed"])
+        self.records = pd.DataFrame(columns=["time", "record", "status", "current_position", "time_elapsed",
+                                             "buy_price", 'sell_price'])
         self.records.to_csv(records_path, mode='a', header=True, index=False)
 
     def __get_unit_buy_price(self):
@@ -101,6 +103,7 @@ class BuyInstantDip:
 
     def __detect_dip(self):
         latest_price = self.records_for_trading["price"].iloc[-1]
+        self.latest_price = latest_price
 
         # normal price level = average of the last 100 prices
         general_normal_price = self.records_for_trading["price"].iloc[-100: -1]
@@ -181,10 +184,13 @@ class BuyInstantDip:
                                                               "record": "buy" if detect_dip else "sell",
                                                               "status": status,
                                                               "current_position": self.position,
+                                                              "buy_price": self.first_dip_price if detect_dip else -1,
+                                                              "sell_price": -1 if detect_dip else self.latest_price,
                                                               "time_elapsed": time_elapsed}, index=[0])])
         self.records.to_csv(records_path, mode='a', header=False, index=False)
         print(f"Saved records to {records_path}")
-        self.records = pd.DataFrame(columns=["time", "record", "status", "current_position", "time_elapsed"])
+        self.records = pd.DataFrame(columns=["time", "record", "status", "current_position", "buy_price",
+                                             "sell_price", "time_elapsed"])
 
     def run_strategy(self):
         start_time = time.time()
@@ -196,7 +202,6 @@ class BuyInstantDip:
             if time.time() - start_time > 5:
                 start_time = time.time()
                 print(f"records are being saved to influxdb...")
-                # save to influxdb
                 save_records_to_influxdb(measurement_name=self.upload_records_measurement_name,
                                          bucket_name=self.bucket_name,
                                          records_path=os.path.join(TMP_DATABASE_DIR, f"{base}_{quote}_records.csv"))
@@ -213,6 +218,8 @@ class BuyInstantDip:
                                                                       "record": "forced_sell",
                                                                       "status": 'Transaction Status tbd',
                                                                       "current_position": self.position,
+                                                                      "buy_price": self.first_dip_price,
+                                                                      "sell_price": self.latest_price,
                                                                       "time_elapsed": -1}, index=[0])])
 
                 self.records.to_csv(records_path, mode='a', header=False, index=False)
@@ -221,7 +228,7 @@ class BuyInstantDip:
 if __name__ == '__main__':
     base = "SOL"
     quote = "USDC"
-    dip_level = [0.001, 0.046]
+    dip_level = [0.01, 0.046]
     upload_records_measurement_name = "jup_solusdc_records_2"
     bucket_name = "test_bucket"
 

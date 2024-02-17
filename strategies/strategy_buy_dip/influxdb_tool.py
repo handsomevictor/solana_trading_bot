@@ -37,6 +37,8 @@ def save_records_to_influxdb(measurement_name, bucket_name, records_path):
             .tag("record", row['record']) \
             .field("time_elapsed", row['time_elapsed']) \
             .field("current_position", row['current_position']) \
+            .field("buy_price", row['buy_price']) \
+            .field("sell_price", row['sell_price']) \
             .time(row['time'], WritePrecision.NS)
         points.append(p)
     write_api.write(bucket_name, record=points)
