@@ -1,4 +1,4 @@
-# Solana On-Chain Trading Bot
+# Solana On-Chain Trading Bot (Very Immature Now)
 
 This project is owned by [@handsomevictor](https://github.com/handsomevictor), a Chinese boy living in Paris.
 

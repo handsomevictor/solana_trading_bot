@@ -40,6 +40,7 @@ from trading_bot.transaction_executor import TradeOnJup
 from trading_bot.resources import (USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT_INFO, TRADING_TOKENS, RPC_URL,
                                    TRANSACTION_TIMEOUT_SECONDS)
 
+
 class BuyInstantDip:
     def __init__(self, base, quote, dip_level, upload_records_measurement_name, bucket_name, abnormal_price_range=0.05):
         self.base = base
