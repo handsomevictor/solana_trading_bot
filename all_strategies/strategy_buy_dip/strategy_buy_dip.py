@@ -44,6 +44,7 @@ from trading_bot.resources import (USER_PUBLIC_KEY, USER_PRIVATE_KEY, TOKEN_MINT
                                    TRANSACTION_TIMEOUT_SECONDS)
 
 
+# noinspection PyShadowingNames
 class BuyInstantDip:
     def __init__(self, base, quote, dip_level, upload_records_measurement_name, bucket_name, abnormal_price_range=0.05):
         self.base = base
@@ -74,7 +75,10 @@ class BuyInstantDip:
                                                          "gas_fee", "record", "status"])
         self.records = pd.DataFrame(columns=["time", "record", "status", "current_position", "buy_price", 'sell_price',
                                              "time_elapsed"])
-        self.records.to_csv(records_path, mode='a', header=True, index=False)
+        self.TMP_DATABASE_DIR = os.path.join(os.path.dirname(__file__), "records")
+        self.file_path = os.path.join(self.TMP_DATABASE_DIR, f"{base}_{quote}_price.csv")
+        self.records_path = os.path.join(self.TMP_DATABASE_DIR, f"{base}_{quote}_records.csv")
+        self.records.to_csv(self.records_path, mode='a', header=True, index=False)
 
     def __get_unit_buy_price(self):
         url = f'https://price.jup.ag/v4/price?ids={self.base}&vsToken={self.quote}'
@@ -99,7 +103,7 @@ class BuyInstantDip:
             "time_delay": time_delay
         }
 
-        with open(file_path, "a") as f:
+        with open(self.file_path, "a") as f:
             writer = csv.writer(f)
             writer.writerow(data.values())
 
@@ -203,8 +207,8 @@ class BuyInstantDip:
                                                 "buy_price": float(self.first_dip_price) if detect_dip else float(-1.0),
                                                 "sell_price": float(-1.0) if detect_dip else float(self.latest_price),
                                                 "time_elapsed": time_elapsed}, index=[0])])
-        self.records.to_csv(records_path, mode='a', header=False, index=False)
-        print(f"Saved records to {records_path}")
+        self.records.to_csv(self.records_path, mode='a', header=False, index=False)
+        print(f"Saved records to {self.records_path}")
         self.records = pd.DataFrame(columns=["time", "record", "status", "current_position", "buy_price",
                                              "sell_price", "time_elapsed"])
         # 打印一下balance
@@ -213,7 +217,7 @@ class BuyInstantDip:
     def run_strategy(self):
         start_time = time.time()
         while True:
-            try:
+            # try:
                 self.__get_unit_buy_price_every_second()
                 self.execute_transaction()
 
@@ -223,7 +227,7 @@ class BuyInstantDip:
                     print(f"records are being saved to influxdb...")
                     save_records_to_influxdb(measurement_name=self.upload_records_measurement_name,
                                              bucket_name=self.bucket_name,
-                                             records_path=os.path.join(TMP_DATABASE_DIR, f"{base}_{quote}_records.csv"))
+                                             records_path=self.records_path)
                     # check balance - very fast, almost have no impact on the performance
                     self.executor.get_token_balance_df()
 
@@ -243,12 +247,12 @@ class BuyInstantDip:
                                                                           "sell_price": self.latest_price,
                                                                           "time_elapsed": -1}, index=[0])])
 
-                    self.records.to_csv(records_path, mode='a', header=False, index=False)
+                    self.records.to_csv(self.records_path, mode='a', header=False, index=False)
 
-            except Exception as e:
-                # Generally the error mainly comes from connecting to InfluxDB
-                print(f"Error occurred: {str(e)}")
-                pass
+            # except Exception as e:
+            #     # Generally the error mainly comes from connecting to InfluxDB
+            #     print(f"Error occurred: {str(e)}")
+            #     pass
 
 
 if __name__ == '__main__':
