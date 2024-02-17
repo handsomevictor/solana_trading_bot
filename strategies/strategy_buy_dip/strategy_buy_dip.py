@@ -20,6 +20,8 @@ Reminders:
 4. Always check the balance before buying or selling
 5. Always record the gas fee
 6. When started the program, self.records_for_trading should always be more than 30 rows before making any decision
+7. When initializing the program, always check if the balance is correct, if there is no USDC, don't start the program
+   or sell all the SOL
 """
 
 import os
@@ -56,8 +58,8 @@ class BuyInstantDip:
         # the following records are for trading - only the latest 100 records will be kept
         self.records_for_trading = pd.DataFrame(columns=["time", "base_id", "quote_id", "price", "time_delay",
                                                          "gas_fee", "record", "status"])
-        self.records = pd.DataFrame(columns=["time", "record", "status", "current_position", "time_elapsed",
-                                             "buy_price", 'sell_price'])
+        self.records = pd.DataFrame(columns=["time", "record", "status", "current_position", "buy_price", 'sell_price',
+                                             "time_elapsed"])
         self.records.to_csv(records_path, mode='a', header=True, index=False)
 
     def __get_unit_buy_price(self):
@@ -166,6 +168,7 @@ class BuyInstantDip:
                 print(f"At {current_time.strftime('%Y-%m-%d %H:%M:%S')}, already sold, do nothing")
                 return None
             elif self.position == 1:
+                ## 检查现在的价格是否低的离谱，如果不是，则卖出
                 self.__sell_instantly()
                 self.position = 0
             else:
@@ -180,13 +183,14 @@ class BuyInstantDip:
         time_elapsed = datetime.datetime.utcnow() - current_time
         time_elapsed = round((time_elapsed.seconds * 1000 + time_elapsed.microseconds // 1000) / 1000, 6)
 
-        self.records = pd.concat([self.records, pd.DataFrame({"time": current_time,
-                                                              "record": "buy" if detect_dip else "sell",
-                                                              "status": status,
-                                                              "current_position": self.position,
-                                                              "buy_price": self.first_dip_price if detect_dip else -1,
-                                                              "sell_price": -1 if detect_dip else self.latest_price,
-                                                              "time_elapsed": time_elapsed}, index=[0])])
+        self.records = pd.concat([self.records,
+                                  pd.DataFrame({"time": current_time,
+                                                "record": "buy" if detect_dip else "sell",
+                                                "status": status,
+                                                "current_position": self.position,
+                                                "buy_price": float(self.first_dip_price) if detect_dip else float(-1.0),
+                                                "sell_price": float(-1.0) if detect_dip else float(self.latest_price),
+                                                "time_elapsed": time_elapsed}, index=[0])])
         self.records.to_csv(records_path, mode='a', header=False, index=False)
         print(f"Saved records to {records_path}")
         self.records = pd.DataFrame(columns=["time", "record", "status", "current_position", "buy_price",
@@ -195,41 +199,47 @@ class BuyInstantDip:
     def run_strategy(self):
         start_time = time.time()
         while True:
-            self.__get_unit_buy_price_every_second()
-            self.execute_transaction()
+            try:
+                self.__get_unit_buy_price_every_second()
+                self.execute_transaction()
 
-            self.records_for_trading = self.records_for_trading.iloc[-150:]
-            if time.time() - start_time > 5:
-                start_time = time.time()
-                print(f"records are being saved to influxdb...")
-                save_records_to_influxdb(measurement_name=self.upload_records_measurement_name,
-                                         bucket_name=self.bucket_name,
-                                         records_path=os.path.join(TMP_DATABASE_DIR, f"{base}_{quote}_records.csv"))
+                self.records_for_trading = self.records_for_trading.iloc[-150:]
+                if time.time() - start_time > 5:
+                    start_time = time.time()
+                    print(f"records are being saved to influxdb...")
+                    save_records_to_influxdb(measurement_name=self.upload_records_measurement_name,
+                                             bucket_name=self.bucket_name,
+                                             records_path=os.path.join(TMP_DATABASE_DIR, f"{base}_{quote}_records.csv"))
 
-            # If it takes more than 1 minute before selling, sell it
-            if time.time() - self.sell_start_time > 60 and self.position == 1:
-                print(f'Forced to sell, because it takes more than 60 seconds to sell')
-                self.__sell_instantly()
-                self.position = 0
-                self.__transaction_status()
-                self.sell_start_time = time.time()
+                # If it takes more than 1 minute before selling, sell it
+                if time.time() - self.sell_start_time > 60 and self.position == 1:
+                    print(f'Forced to sell, because it takes more than 60 seconds to sell')
+                    self.__sell_instantly()
+                    self.position = 0
+                    self.__transaction_status()
+                    self.sell_start_time = time.time()
 
-                self.records = pd.concat([self.records, pd.DataFrame({"time": datetime.datetime.utcnow(),
-                                                                      "record": "forced_sell",
-                                                                      "status": 'Transaction Status tbd',
-                                                                      "current_position": self.position,
-                                                                      "buy_price": self.first_dip_price,
-                                                                      "sell_price": self.latest_price,
-                                                                      "time_elapsed": -1}, index=[0])])
+                    self.records = pd.concat([self.records, pd.DataFrame({"time": datetime.datetime.utcnow(),
+                                                                          "record": "forced_sell",
+                                                                          "status": 'Transaction Status tbd',
+                                                                          "current_position": self.position,
+                                                                          "buy_price": self.first_dip_price,
+                                                                          "sell_price": self.latest_price,
+                                                                          "time_elapsed": -1}, index=[0])])
 
-                self.records.to_csv(records_path, mode='a', header=False, index=False)
+                    self.records.to_csv(records_path, mode='a', header=False, index=False)
+
+            except Exception as e:
+                # Generally the error mainly comes from connecting to InfluxDB
+                print(f"Error occurred: {str(e)}")
+                pass
 
 
 if __name__ == '__main__':
     base = "SOL"
     quote = "USDC"
     dip_level = [0.01, 0.046]
-    upload_records_measurement_name = "jup_solusdc_records_2"
+    upload_records_measurement_name = "jup_solusdc_records_4"
     bucket_name = "test_bucket"
 
     TMP_DATABASE_DIR = os.path.join(os.path.dirname(__file__), "records")
